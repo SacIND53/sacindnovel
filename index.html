@@ -519,6 +519,42 @@
     .close-modal:hover {
       color: black;
     }
+    
+    /* Upload Progress Styles */
+    .upload-progress {
+      width: 100%;
+      background-color: #f3f3f3;
+      border-radius: 5px;
+      margin: 10px 0;
+    }
+    
+    .progress-bar {
+      height: 20px;
+      border-radius: 5px;
+      background-color: #4CAF50;
+      width: 0%;
+      transition: width 0.3s;
+      text-align: center;
+      color: white;
+      font-size: 12px;
+      line-height: 20px;
+    }
+    
+    .upload-status {
+      margin-top: 5px;
+      font-size: 14px;
+      color: #666;
+    }
+    
+    .retry-button {
+      background-color: #ff9800;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -1151,6 +1187,193 @@
       }
     }
 
+    // Fungsi untuk kompresi gambar
+    async function compressImage(file, maxWidth = 800, quality = 0.7) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const img = new Image();
+          img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const scale = Math.min(maxWidth / img.width, 1);
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            canvas.toBlob((blob) => {
+              resolve(new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              }));
+            }, 'image/jpeg', quality);
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Fungsi validasi form upload
+    function validateUploadForm(title, altTitle, coverFile, synopsis) {
+      if (title.length < 5 || title.length > 100) {
+        alert('Judul novel harus antara 5-100 karakter');
+        return false;
+      }
+      
+      if (altTitle && altTitle.length > 100) {
+        alert('Judul alternatif maksimal 100 karakter');
+        return false;
+      }
+      
+      if (synopsis.length < 100 || synopsis.length > 2000) {
+        alert('Sinopsis harus antara 100-2000 karakter');
+        return false;
+      }
+      
+      if (!coverFile) {
+        alert('Cover novel harus diupload');
+        return false;
+      }
+      
+      if (coverFile.size > 5 * 1024 * 1024) {
+        alert('Ukuran cover maksimal 5MB');
+        return false;
+      }
+      
+      const selectedGenres = document.querySelectorAll('#uploadGenreGrid .selected');
+      if (selectedGenres.length === 0) {
+        alert('Pilih minimal satu genre');
+        return false;
+      }
+      
+      return true;
+    }
+
+    // Fungsi untuk retry upload
+    function retryUpload() {
+      document.querySelector('.upload-progress').remove();
+      document.querySelector('.upload-status').remove();
+      document.getElementById('uploadForm').dispatchEvent(new Event('submit'));
+    }
+
+    // Fungsi upload novel yang sudah dioptimasi
+    async function handleNovelUpload(e) {
+      e.preventDefault();
+      
+      if (!auth.currentUser) {
+        alert('Silakan login terlebih dahulu');
+        return;
+      }
+
+      const title = document.getElementById('title').value.trim();
+      const altTitle = document.getElementById('altTitle').value.trim();
+      const coverFile = document.getElementById('cover').files[0];
+      const synopsis = document.getElementById('synopsis').value.trim();
+      
+      // Validasi
+      if (!validateUploadForm(title, altTitle, coverFile, synopsis)) {
+        return;
+      }
+
+      const submitBtn = document.querySelector('#uploadForm .submit-btn');
+      const progressContainer = document.createElement('div');
+      progressContainer.innerHTML = `
+        <div class="upload-progress">
+          <div class="progress-bar" id="uploadProgress">0%</div>
+        </div>
+        <div class="upload-status" id="uploadStatus">Mempersiapkan upload...</div>
+      `;
+      submitBtn.parentNode.insertBefore(progressContainer, submitBtn);
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
+
+      try {
+        // 1. Kompresi gambar terlebih dahulu
+        document.getElementById('uploadStatus').textContent = "Mengkompresi gambar...";
+        const compressedFile = await compressImage(coverFile);
+        
+        // 2. Upload ke Firebase Storage dengan progress tracking
+        document.getElementById('uploadStatus').textContent = "Memulai upload...";
+        const storageRef = storage.ref();
+        const coverRef = storageRef.child(`covers/${Date.now()}_${compressedFile.name}`);
+        
+        const uploadTask = coverRef.put(compressedFile, {
+          contentType: compressedFile.type,
+          customMetadata: {
+            uploadedBy: auth.currentUser.uid
+          }
+        });
+
+        // Setup timeout
+        const uploadTimeout = setTimeout(() => {
+          uploadTask.cancel();
+          throw new Error('Upload melebihi batas waktu (3 menit). Silakan coba lagi dengan gambar yang lebih kecil atau koneksi yang lebih stabil.');
+        }, 180000);
+
+        // Progress tracking
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            document.getElementById('uploadProgress').style.width = `${progress}%`;
+            document.getElementById('uploadProgress').textContent = `${Math.round(progress)}%`;
+            document.getElementById('uploadStatus').textContent = `Mengupload: ${Math.round(snapshot.bytesTransferred/1024)}KB dari ${Math.round(snapshot.totalBytes/1024)}KB`;
+          },
+          (error) => {
+            clearTimeout(uploadTimeout);
+            document.getElementById('uploadStatus').innerHTML = `
+              <span style="color:red">Gagal upload: ${error.message}</span>
+              <button class="retry-button" onclick="retryUpload()">Coba Lagi</button>
+            `;
+            throw error;
+          },
+          async () => {
+            clearTimeout(uploadTimeout);
+            document.getElementById('uploadStatus').textContent = "Menyelesaikan upload...";
+            
+            // 3. Dapatkan URL download
+            const coverUrl = await uploadTask.snapshot.ref.getDownloadURL();
+            
+            // 4. Simpan data novel ke Firestore
+            document.getElementById('uploadStatus').textContent = "Menyimpan data novel...";
+            const selectedGenres = Array.from(document.querySelectorAll('#uploadGenreGrid .selected'))
+              .map(el => el.textContent);
+            
+            const novelData = {
+              title,
+              altTitle: altTitle || null,
+              coverUrl,
+              genres: selectedGenres,
+              synopsis,
+              authorId: auth.currentUser.uid,
+              authorName: auth.currentUser.displayName || auth.currentUser.email,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+              views: 0,
+              chapterCount: 0
+            };
+            
+            await db.collection('novels').add(novelData);
+            
+            // 5. Tampilkan sukses
+            document.getElementById('uploadStatus').textContent = "Upload berhasil!";
+            alert('Novel berhasil diupload!');
+            window.location.reload();
+          }
+        );
+      } catch (error) {
+        console.error('Upload error:', error);
+        document.getElementById('uploadStatus').innerHTML = `
+          <span style="color:red">Error: ${error.message}</span>
+          <button class="retry-button" onclick="retryUpload()">Coba Lagi</button>
+        `;
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Upload Novel';
+      }
+    }
+
     // Fungsi untuk menampilkan form upload novel
     function showUploadForm() {
       if (!auth.currentUser) {
@@ -1177,7 +1400,7 @@
           <div class="form-group">
             <label for="cover">Cover Novel*</label>
             <input type="file" id="cover" accept="image/*" required>
-            <small>Ukuran maksimal 2MB, format JPG/PNG. Rekomendasi rasio 3:4</small>
+            <small>Ukuran maksimal 5MB, format JPG/PNG. Rekomendasi rasio 3:4</small>
           </div>
           
           <div class="form-group">
@@ -1212,87 +1435,11 @@
         document.getElementById('uploadGenreGrid').appendChild(genreItem);
       });
       
-      // Handle form submission
-      document.getElementById('uploadForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const title = document.getElementById('title').value.trim();
-        const altTitle = document.getElementById('altTitle').value.trim();
-        const coverFile = document.getElementById('cover').files[0];
-        const synopsis = document.getElementById('synopsis').value.trim();
-        
-        // Validasi
-        if (title.length < 5 || title.length > 100) {
-          alert('Judul novel harus antara 5-100 karakter');
-          return;
-        }
-        
-        if (altTitle && altTitle.length > 100) {
-          alert('Judul alternatif maksimal 100 karakter');
-          return;
-        }
-        
-        if (synopsis.length < 100 || synopsis.length > 2000) {
-          alert('Sinopsis harus antara 100-2000 karakter');
-          return;
-        }
-        
-        const selectedGenres = Array.from(document.querySelectorAll('#uploadGenreGrid .selected'))
-          .map(el => el.textContent);
-          
-        if (selectedGenres.length === 0) {
-          alert('Pilih minimal satu genre');
-          return;
-        }
-        
-        if (coverFile.size > 2 * 1024 * 1024) {
-          alert('Ukuran cover maksimal 2MB');
-          return;
-        }
-        
-        try {
-          // Tampilkan loading
-          const submitBtn = document.querySelector('#uploadForm .submit-btn');
-          submitBtn.disabled = true;
-          submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengupload...';
-          
-          // Upload cover ke Firebase Storage
-          const storageRef = storage.ref();
-          const coverRef = storageRef.child(`covers/${Date.now()}_${coverFile.name}`);
-          const uploadTask = await coverRef.put(coverFile);
-          const coverUrl = await uploadTask.ref.getDownloadURL();
-          
-          // Simpan data novel ke Firestore
-          const novelData = {
-            title,
-            altTitle: altTitle || null,
-            coverUrl,
-            genres: selectedGenres,
-            synopsis,
-            authorId: auth.currentUser.uid,
-            authorName: auth.currentUser.displayName || auth.currentUser.email,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
-            views: 0,
-            chapterCount: 0
-          };
-          
-          const novelRef = await db.collection('novels').add(novelData);
-          
-          // Update UI
-          alert('Novel berhasil diupload!');
-          showNovelDetail(novelRef.id);
-        } catch (error) {
-          console.error('Error uploading novel:', error);
-          alert('Gagal mengupload novel: ' + error.message);
-        } finally {
-          const submitBtn = document.querySelector('#uploadForm .submit-btn');
-          if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Upload Novel';
-          }
-        }
-      });
+      // Update event listener untuk form upload
+      const uploadForm = document.getElementById('uploadForm');
+      if (uploadForm) {
+        uploadForm.addEventListener('submit', handleNovelUpload);
+      }
     }
 
     // Fungsi untuk setup hamburger menu
