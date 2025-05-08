@@ -227,11 +227,28 @@
     .popular-novels {
       background-color: #fff;
       padding: 30px 0;
-      margin-bottom: 30px;
+      margin-bottom: 20px;
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     
     .popular-novels h2 {
+      margin-bottom: 20px;
+      font-size: 24px;
+      color: #333;
+      border-bottom: 2px solid #ff0000;
+      padding-bottom: 10px;
+      display: inline-block;
+    }
+    
+    /* Updated Novels Section */
+    .updated-novels {
+      background-color: #fff;
+      padding: 30px 0;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .updated-novels h2 {
       margin-bottom: 20px;
       font-size: 24px;
       color: #333;
@@ -270,6 +287,13 @@
       font-size: 16px;
       text-align: center;
       color: #333;
+    }
+    
+    .novel-item .update-time {
+      padding: 0 15px 15px;
+      font-size: 12px;
+      color: #666;
+      text-align: center;
     }
     
     /* Detail Novel Style */
@@ -328,6 +352,7 @@
     
     .novel-meta {
       display: flex;
+      flex-wrap: wrap;
       gap: 15px;
       margin-bottom: 20px;
       font-size: 14px;
@@ -375,7 +400,8 @@
     }
     
     .form-group input,
-    .form-group textarea {
+    .form-group textarea,
+    .form-group select {
       width: 100%;
       padding: 10px;
       border: 1px solid #ddd;
@@ -385,6 +411,13 @@
     
     .form-group textarea {
       min-height: 150px;
+    }
+    
+    .form-group small {
+      display: block;
+      margin-top: 5px;
+      font-size: 12px;
+      color: #666;
     }
     
     .submit-btn {
@@ -400,6 +433,11 @@
     
     .submit-btn:hover {
       background-color: #cc0000;
+    }
+    
+    .submit-btn:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
     }
     
     /* Button Styles */
@@ -429,19 +467,61 @@
       margin-top: 5px;
       width: 100%;
     }
+    
+    /* Chapter Navigation */
+    .chapter-navigation {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+    
+    /* Loading Spinner */
+    .fa-spinner {
+      margin-right: 8px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1002;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
+    }
+    
+    .modal-content {
+      background-color: #fefefe;
+      margin: 10% auto;
+      padding: 20px;
+      border-radius: 8px;
+      width: 80%;
+      max-width: 600px;
+    }
+    
+    .close-modal {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    
+    .close-modal:hover {
+      color: black;
+    }
   </style>
 </head>
 <body>
-  <!-- Popular Novels Section -->
-  <section class="popular-novels">
-    <div class="container">
-      <h2>Novel Populer</h2>
-      <div class="novel-grid" id="popularNovels">
-        <!-- Novel populer akan dimuat di sini -->
-      </div>
-    </div>
-  </section>
-
   <!-- Header -->
   <header>
     <div class="container">
@@ -462,6 +542,26 @@
     </div>
   </header>
   
+  <!-- Popular Novels Section -->
+  <section class="popular-novels">
+    <div class="container">
+      <h2>Novel Populer</h2>
+      <div class="novel-grid" id="popularNovels">
+        <!-- Novel populer akan dimuat di sini -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Updated Novels Section -->
+  <section class="updated-novels">
+    <div class="container">
+      <h2>Update Terbaru</h2>
+      <div class="novel-grid" id="updatedNovels">
+        <!-- Novel terupdate akan dimuat di sini -->
+      </div>
+    </div>
+  </section>
+
   <!-- Main Content -->
   <div class="container">
     <div id="mainContent">
@@ -514,38 +614,28 @@
   <!-- Overlay -->
   <div class="overlay" id="overlay"></div>
   
-  <!-- Upload Modal -->
-  <div id="uploadModal" class="modal" style="display: none;">
+  <!-- Upload Chapter Modal -->
+  <div id="uploadChapterModal" class="modal">
     <div class="modal-content">
       <span class="close-modal">&times;</span>
-      <h2>Upload Novel</h2>
-      <form id="uploadForm">
+      <h2>Tambah Chapter Baru</h2>
+      <form id="chapterForm">
         <div class="form-group">
-          <label for="title">Judul Novel</label>
-          <input type="text" id="title" required>
+          <label for="chapterNumber">Nomor Chapter</label>
+          <input type="number" id="chapterNumber" required>
         </div>
         
         <div class="form-group">
-          <label for="altTitle">Judul Alternatif (opsional)</label>
-          <input type="text" id="altTitle">
+          <label for="chapterTitle">Judul Chapter</label>
+          <input type="text" id="chapterTitle" required>
         </div>
         
         <div class="form-group">
-          <label for="cover">Cover Novel</label>
-          <input type="file" id="cover" accept="image/*" required>
+          <label for="chapterContent">Isi Chapter</label>
+          <textarea id="chapterContent" rows="10" required></textarea>
         </div>
         
-        <div class="form-group">
-          <label>Genre</label>
-          <div class="genre-grid" id="uploadGenreGrid"></div>
-        </div>
-        
-        <div class="form-group">
-          <label for="synopsis">Sinopsis</label>
-          <textarea id="synopsis" rows="5" required></textarea>
-        </div>
-        
-        <button type="submit" class="submit-btn">Upload Novel</button>
+        <button type="submit" class="submit-btn">Upload Chapter</button>
       </form>
     </div>
   </div>
@@ -575,13 +665,45 @@
       "Historical", "Hunter"
     ];
 
+    // Fungsi untuk memformat tanggal
+    function formatDate(date) {
+      if (!date) return "Tidak diketahui";
+      
+      const now = new Date();
+      const dateObj = date.toDate ? date.toDate() : new Date(date);
+      const diff = now - dateObj;
+      const diffDays = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const diffHours = Math.floor(diff / (1000 * 60 * 60));
+      const diffMinutes = Math.floor(diff / (1000 * 60));
+      
+      if (diffMinutes < 60) {
+        return `${diffMinutes} menit lalu`;
+      } else if (diffHours < 24) {
+        return `${diffHours} jam lalu`;
+      } else if (diffDays === 1) {
+        return "Kemarin";
+      } else {
+        return `${diffDays} hari lalu`;
+      }
+    }
+
     // Fungsi untuk render popular novels
     async function renderPopularNovels() {
       const popularNovelsContainer = document.getElementById('popularNovels');
-      popularNovelsContainer.innerHTML = '';
+      popularNovelsContainer.innerHTML = '<div class="loading">Memuat novel populer...</div>';
       
       try {
-        const querySnapshot = await db.collection('novels').orderBy('views', 'desc').limit(5).get();
+        const querySnapshot = await db.collection('novels')
+          .orderBy('views', 'desc')
+          .limit(6)
+          .get();
+        
+        popularNovelsContainer.innerHTML = '';
+        
+        if (querySnapshot.empty) {
+          popularNovelsContainer.innerHTML = '<p>Belum ada novel populer</p>';
+          return;
+        }
         
         querySnapshot.forEach(doc => {
           const novel = doc.data();
@@ -589,7 +711,7 @@
           novelElement.className = 'novel-item';
           novelElement.innerHTML = `
             <a href="#" onclick="showNovelDetail('${doc.id}')">
-              <img src="${novel.coverUrl}" alt="${novel.title}">
+              <img src="${novel.coverUrl || 'https://via.placeholder.com/180x240?text=No+Cover'}" alt="${novel.title}">
               <h3>${novel.title}</h3>
             </a>
           `;
@@ -597,54 +719,103 @@
         });
       } catch (error) {
         console.error("Error getting popular novels: ", error);
+        popularNovelsContainer.innerHTML = '<p>Gagal memuat novel populer</p>';
+      }
+    }
+
+    // Fungsi untuk render updated novels
+    async function renderUpdatedNovels() {
+      const updatedNovelsContainer = document.getElementById('updatedNovels');
+      updatedNovelsContainer.innerHTML = '<div class="loading">Memuat update terbaru...</div>';
+      
+      try {
+        const querySnapshot = await db.collection('novels')
+          .orderBy('lastUpdated', 'desc')
+          .limit(12)
+          .get();
+        
+        updatedNovelsContainer.innerHTML = '';
+        
+        if (querySnapshot.empty) {
+          updatedNovelsContainer.innerHTML = '<p>Belum ada update novel</p>';
+          return;
+        }
+        
+        querySnapshot.forEach(doc => {
+          const novel = doc.data();
+          const novelElement = document.createElement('div');
+          novelElement.className = 'novel-item';
+          novelElement.innerHTML = `
+            <a href="#" onclick="showNovelDetail('${doc.id}')">
+              <img src="${novel.coverUrl || 'https://via.placeholder.com/180x240?text=No+Cover'}" alt="${novel.title}">
+              <h3>${novel.title}</h3>
+              <p class="update-time">Update: ${formatDate(novel.lastUpdated)}</p>
+            </a>
+          `;
+          updatedNovelsContainer.appendChild(novelElement);
+        });
+      } catch (error) {
+        console.error("Error getting updated novels: ", error);
+        updatedNovelsContainer.innerHTML = '<p>Gagal memuat update novel</p>';
       }
     }
 
     // Fungsi untuk menampilkan detail novel
     async function showNovelDetail(novelId) {
+      const mainContent = document.getElementById('mainContent');
+      mainContent.innerHTML = '<div class="loading">Memuat detail novel...</div>';
+      
       try {
-        const doc = await db.collection('novels').doc(novelId).get();
+        const novelDoc = await db.collection('novels').doc(novelId).get();
         
-        if (!doc.exists) {
-          alert('Novel tidak ditemukan');
+        if (!novelDoc.exists) {
+          mainContent.innerHTML = '<p>Novel tidak ditemukan</p>';
           return;
         }
         
-        const novel = doc.data();
-        const mainContent = document.getElementById('mainContent');
+        const novel = novelDoc.data();
+        const isBookmarked = auth.currentUser ? await isNovelBookmarked(novelId) : false;
+        const isAuthor = auth.currentUser && auth.currentUser.uid === novel.authorId;
         
         mainContent.innerHTML = `
           <div class="novel-detail">
             <div class="novel-header">
-              <img src="${novel.coverUrl}" alt="${novel.title}" class="novel-cover">
+              <img src="${novel.coverUrl || 'https://via.placeholder.com/200x280?text=No+Cover'}" 
+                   alt="${novel.title}" class="novel-cover">
               <div class="novel-info">
                 <h1>${novel.title}</h1>
                 ${novel.altTitle ? `<div class="alt-title">${novel.altTitle}</div>` : ''}
                 
                 <div class="novel-genres">
-                  ${novel.genres.map(genre => `<span class="genre-tag">${genre}</span>`).join('')}
+                  ${novel.genres && novel.genres.map(genre => 
+                    `<span class="genre-tag">${genre}</span>`).join('') || ''}
                 </div>
                 
                 <div class="novel-synopsis">
                   <h3>Sinopsis</h3>
-                  <p>${novel.synopsis}</p>
+                  <p>${novel.synopsis || 'Sinopsis belum tersedia'}</p>
                 </div>
                 
                 <div class="novel-meta">
-                  <span><i class="fas fa-user"></i> ${novel.authorName}</span>
-                  <span><i class="fas fa-eye"></i> ${novel.views} dilihat</span>
-                  <span><i class="fas fa-book"></i> ${novel.chapterCount} chapter</span>
+                  <span><i class="fas fa-user"></i> ${novel.authorName || 'Anonim'}</span>
+                  <span><i class="fas fa-eye"></i> ${novel.views || 0} dilihat</span>
+                  <span><i class="fas fa-book"></i> ${novel.chapterCount || 0} chapter</span>
+                  <span><i class="fas fa-clock"></i> Terakhir update: ${formatDate(novel.lastUpdated)}</span>
                 </div>
                 
-                ${auth.currentUser && auth.currentUser.uid === novel.authorId ? 
-                  `<button onclick="showUploadChapterForm('${novelId}')" class="btn-primary">
-                    <i class="fas fa-plus"></i> Tambah Chapter
-                  </button>` : ''}
-                
-                ${auth.currentUser ? 
-                  `<button onclick="toggleBookmark('${novelId}')" class="btn-secondary">
-                    <i class="fas fa-bookmark"></i> ${await isBookmarked(novelId) ? 'Hapus Bookmark' : 'Bookmark'}
-                  </button>` : ''}
+                <div class="novel-actions">
+                  ${isAuthor ? `
+                    <button onclick="showUploadChapterForm('${novelId}')" class="btn-primary">
+                      <i class="fas fa-plus"></i> Tambah Chapter
+                    </button>
+                  ` : ''}
+                  
+                  ${auth.currentUser ? `
+                    <button onclick="toggleBookmark('${novelId}')" class="btn-secondary">
+                      <i class="fas fa-bookmark"></i> ${isBookmarked ? 'Hapus Bookmark' : 'Bookmark'}
+                    </button>
+                  ` : ''}
+                </div>
               </div>
             </div>
           </div>
@@ -657,21 +828,27 @@
         
         // Load chapters
         const chapterItems = document.getElementById('chapterItems');
-        const chaptersSnapshot = await db.collection('novels').doc(novelId).collection('chapters')
-          .orderBy('chapterNumber', 'asc').get();
+        const chaptersSnapshot = await db.collection('novels').doc(novelId)
+          .collection('chapters')
+          .orderBy('chapterNumber', 'asc')
+          .get();
           
-        chaptersSnapshot.forEach(chapterDoc => {
-          const chapter = chapterDoc.data();
-          const chapterItem = document.createElement('div');
-          chapterItem.className = 'chapter-item';
-          chapterItem.innerHTML = `
-            <a href="#" onclick="showChapter('${novelId}', '${chapterDoc.id}')">
-              <span>Chapter ${chapter.chapterNumber}: ${chapter.title}</span>
-              <span>${new Date(chapter.createdAt.toDate()).toLocaleDateString()}</span>
-            </a>
-          `;
-          chapterItems.appendChild(chapterItem);
-        });
+        if (chaptersSnapshot.empty) {
+          chapterItems.innerHTML = '<p>Belum ada chapter</p>';
+        } else {
+          chaptersSnapshot.forEach(chapterDoc => {
+            const chapter = chapterDoc.data();
+            const chapterItem = document.createElement('div');
+            chapterItem.className = 'chapter-item';
+            chapterItem.innerHTML = `
+              <a href="#" onclick="showChapter('${novelId}', '${chapterDoc.id}')">
+                <span>Chapter ${chapter.chapterNumber}: ${chapter.title}</span>
+                <span>${formatDate(chapter.createdAt)}</span>
+              </a>
+            `;
+            chapterItems.appendChild(chapterItem);
+          });
+        }
         
         // Update view count
         await db.collection('novels').doc(novelId).update({
@@ -682,83 +859,12 @@
         window.scrollTo(0, 0);
       } catch (error) {
         console.error("Error showing novel detail: ", error);
-      }
-    }
-
-    // Fungsi untuk menampilkan chapter
-    async function showChapter(novelId, chapterId) {
-      try {
-        const chapterDoc = await db.collection('novels').doc(novelId).collection('chapters').doc(chapterId).get();
-        
-        if (!chapterDoc.exists) {
-          alert('Chapter tidak ditemukan');
-          return;
-        }
-        
-        const chapter = chapterDoc.data();
-        const novelDoc = await db.collection('novels').doc(novelId).get();
-        const novel = novelDoc.data();
-        
-        const mainContent = document.getElementById('mainContent');
-        mainContent.innerHTML = `
-          <div class="novel-detail">
-            <div class="novel-header">
-              <img src="${novel.coverUrl}" alt="${novel.title}" class="novel-cover">
-              <div class="novel-info">
-                <h1>${novel.title}</h1>
-                <h2>Chapter ${chapter.chapterNumber}: ${chapter.title}</h2>
-                <div class="novel-meta">
-                  <span><i class="fas fa-calendar"></i> ${new Date(chapter.createdAt.toDate()).toLocaleDateString()}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div class="chapter-content">
-              ${chapter.content.split('\n').map(para => `<p>${para}</p>`).join('')}
-            </div>
-            
-            <div class="chapter-navigation">
-              ${chapter.chapterNumber > 1 ? 
-                `<button onclick="navigateChapter('${novelId}', ${chapter.chapterNumber - 1})" class="btn-primary">
-                  <i class="fas fa-arrow-left"></i> Previous
-                </button>` : ''}
-              
-              <button onclick="showNovelDetail('${novelId}')" class="btn-secondary">
-                <i class="fas fa-list"></i> Daftar Chapter
-              </button>
-              
-              ${chapter.chapterNumber < novel.chapterCount ? 
-                `<button onclick="navigateChapter('${novelId}', ${chapter.chapterNumber + 1})" class="btn-primary">
-                  Next <i class="fas fa-arrow-right"></i>
-                </button>` : ''}
-            </div>
-          </div>
-        `;
-        
-        // Scroll ke atas
-        window.scrollTo(0, 0);
-      } catch (error) {
-        console.error("Error showing chapter: ", error);
-      }
-    }
-
-    // Fungsi untuk navigasi chapter
-    async function navigateChapter(novelId, chapterNumber) {
-      try {
-        const querySnapshot = await db.collection('novels').doc(novelId).collection('chapters')
-          .where('chapterNumber', '==', chapterNumber).limit(1).get();
-          
-        if (!querySnapshot.empty) {
-          const chapterDoc = querySnapshot.docs[0];
-          showChapter(novelId, chapterDoc.id);
-        }
-      } catch (error) {
-        console.error("Error navigating chapter: ", error);
+        mainContent.innerHTML = '<p>Gagal memuat detail novel</p>';
       }
     }
 
     // Fungsi untuk mengecek apakah novel sudah dibookmark
-    async function isBookmarked(novelId) {
+    async function isNovelBookmarked(novelId) {
       if (!auth.currentUser) return false;
       
       try {
@@ -779,7 +885,7 @@
       }
       
       try {
-        const isBookmarked = await isBookmarked(novelId);
+        const isBookmarked = await isNovelBookmarked(novelId);
         const bookmarkRef = db.collection('users').doc(auth.currentUser.uid)
           .collection('bookmarks').doc(novelId);
           
@@ -802,52 +908,40 @@
         }
       } catch (error) {
         console.error("Error toggling bookmark: ", error);
+        alert('Gagal mengupdate bookmark');
       }
     }
 
     // Fungsi untuk menampilkan form upload chapter
     async function showUploadChapterForm(novelId) {
-      const mainContent = document.getElementById('mainContent');
-      mainContent.innerHTML += `
-        <div id="uploadChapterModal" class="modal" style="display: block;">
-          <div class="modal-content">
-            <span class="close-modal" onclick="document.getElementById('uploadChapterModal').style.display='none'">&times;</span>
-            <h2>Tambah Chapter Baru</h2>
-            <form id="chapterForm">
-              <div class="form-group">
-                <label for="chapterNumber">Nomor Chapter</label>
-                <input type="number" id="chapterNumber" required>
-              </div>
-              
-              <div class="form-group">
-                <label for="chapterTitle">Judul Chapter</label>
-                <input type="text" id="chapterTitle" required>
-              </div>
-              
-              <div class="form-group">
-                <label for="chapterContent">Isi Chapter</label>
-                <textarea id="chapterContent" rows="10" required></textarea>
-              </div>
-              
-              <button type="submit" class="submit-btn">Upload Chapter</button>
-            </form>
-          </div>
-        </div>
-      `;
-      
-      // Set chapter number
+      const modal = document.getElementById('uploadChapterModal');
       const novelDoc = await db.collection('novels').doc(novelId).get();
-      document.getElementById('chapterNumber').value = novelDoc.data().chapterCount + 1;
+      const nextChapterNumber = (novelDoc.data().chapterCount || 0) + 1;
+      
+      document.getElementById('chapterNumber').value = nextChapterNumber;
+      document.getElementById('chapterTitle').value = '';
+      document.getElementById('chapterContent').value = '';
+      
+      modal.style.display = 'block';
       
       // Handle form submission
-      document.getElementById('chapterForm').addEventListener('submit', async function(e) {
+      document.getElementById('chapterForm').onsubmit = async function(e) {
         e.preventDefault();
         
         const chapterNumber = parseInt(document.getElementById('chapterNumber').value);
-        const title = document.getElementById('chapterTitle').value;
-        const content = document.getElementById('chapterContent').value;
+        const title = document.getElementById('chapterTitle').value.trim();
+        const content = document.getElementById('chapterContent').value.trim();
+        
+        if (!title || !content) {
+          alert('Judul dan isi chapter harus diisi');
+          return;
+        }
         
         try {
+          const submitBtn = document.querySelector('#chapterForm .submit-btn');
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengupload...';
+          
           // Add chapter
           await db.collection('novels').doc(novelId).collection('chapters').add({
             chapterNumber,
@@ -858,17 +952,124 @@
           
           // Update chapter count
           await db.collection('novels').doc(novelId).update({
-            chapterCount: chapterNumber
+            chapterCount: chapterNumber,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
           });
           
-          alert('Chapter berhasil ditambahkan');
-          document.getElementById('uploadChapterModal').style.display = 'none';
+          modal.style.display = 'none';
           showNovelDetail(novelId);
         } catch (error) {
           console.error("Error adding chapter: ", error);
           alert('Gagal menambahkan chapter');
+        } finally {
+          const submitBtn = document.querySelector('#chapterForm .submit-btn');
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Upload Chapter';
+          }
         }
-      });
+      };
+    }
+
+    // Fungsi untuk menampilkan chapter
+    async function showChapter(novelId, chapterId) {
+      const mainContent = document.getElementById('mainContent');
+      mainContent.innerHTML = '<div class="loading">Memuat chapter...</div>';
+      
+      try {
+        const [novelDoc, chapterDoc] = await Promise.all([
+          db.collection('novels').doc(novelId).get(),
+          db.collection('novels').doc(novelId).collection('chapters').doc(chapterId).get()
+        ]);
+        
+        if (!novelDoc.exists || !chapterDoc.exists) {
+          mainContent.innerHTML = '<p>Chapter tidak ditemukan</p>';
+          return;
+        }
+        
+        const novel = novelDoc.data();
+        const chapter = chapterDoc.data();
+        
+        // Get previous and next chapter numbers
+        const [prevChapter, nextChapter] = await Promise.all([
+          getAdjacentChapter(novelId, chapter.chapterNumber - 1),
+          getAdjacentChapter(novelId, chapter.chapterNumber + 1)
+        ]);
+        
+        mainContent.innerHTML = `
+          <div class="novel-detail">
+            <div class="novel-header">
+              <img src="${novel.coverUrl || 'https://via.placeholder.com/200x280?text=No+Cover'}" 
+                   alt="${novel.title}" class="novel-cover">
+              <div class="novel-info">
+                <h1>${novel.title}</h1>
+                <h2>Chapter ${chapter.chapterNumber}: ${chapter.title}</h2>
+                <div class="novel-meta">
+                  <span><i class="fas fa-calendar"></i> ${formatDate(chapter.createdAt)}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="chapter-content">
+              ${chapter.content.split('\n').map(para => `<p>${para}</p>`).join('')}
+            </div>
+            
+            <div class="chapter-navigation">
+              ${prevChapter ? `
+                <button onclick="navigateChapter('${novelId}', ${prevChapter.chapterNumber})" class="btn-primary">
+                  <i class="fas fa-arrow-left"></i> Chapter Sebelumnya
+                </button>
+              ` : ''}
+              
+              <button onclick="showNovelDetail('${novelId}')" class="btn-secondary">
+                <i class="fas fa-list"></i> Daftar Chapter
+              </button>
+              
+              ${nextChapter ? `
+                <button onclick="navigateChapter('${novelId}', ${nextChapter.chapterNumber})" class="btn-primary">
+                  Chapter Selanjutnya <i class="fas fa-arrow-right"></i>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+        
+        // Scroll ke atas
+        window.scrollTo(0, 0);
+      } catch (error) {
+        console.error("Error showing chapter: ", error);
+        mainContent.innerHTML = '<p>Gagal memuat chapter</p>';
+      }
+    }
+
+    // Fungsi untuk mendapatkan chapter sebelumnya/sesudahnya
+    async function getAdjacentChapter(novelId, chapterNumber) {
+      try {
+        const querySnapshot = await db.collection('novels').doc(novelId)
+          .collection('chapters')
+          .where('chapterNumber', '==', chapterNumber)
+          .limit(1)
+          .get();
+          
+        if (!querySnapshot.empty) {
+          return {
+            id: querySnapshot.docs[0].id,
+            ...querySnapshot.docs[0].data()
+          };
+        }
+        return null;
+      } catch (error) {
+        console.error("Error getting adjacent chapter: ", error);
+        return null;
+      }
+    }
+
+    // Fungsi untuk navigasi chapter
+    async function navigateChapter(novelId, chapterNumber) {
+      const chapter = await getAdjacentChapter(novelId, chapterNumber);
+      if (chapter) {
+        showChapter(novelId, chapter.id);
+      }
     }
 
     // Fungsi untuk menampilkan halaman bookmark
@@ -878,83 +1079,117 @@
         return;
       }
       
+      const mainContent = document.getElementById('mainContent');
+      mainContent.innerHTML = '<h1>Bookmark Anda</h1><div class="novel-grid" id="bookmarkedNovels"></div>';
+      
       try {
-        const mainContent = document.getElementById('mainContent');
-        mainContent.innerHTML = '<h1>Bookmark Anda</h1><div class="novel-grid" id="bookmarkedNovels"></div>';
-        
         const bookmarkedNovels = document.getElementById('bookmarkedNovels');
-        const querySnapshot = await db.collection('users').doc(auth.currentUser.uid).collection('bookmarks').get();
+        const querySnapshot = await db.collection('users').doc(auth.currentUser.uid)
+          .collection('bookmarks')
+          .orderBy('addedAt', 'desc')
+          .get();
         
         if (querySnapshot.empty) {
           bookmarkedNovels.innerHTML = '<p>Anda belum memiliki bookmark</p>';
           return;
         }
         
-        querySnapshot.forEach(async doc => {
-          const novelId = doc.id;
-          const novelDoc = await db.collection('novels').doc(novelId).get();
-          
-          if (novelDoc.exists) {
-            const novel = novelDoc.data();
-            const novelElement = document.createElement('div');
-            novelElement.className = 'novel-item';
-            novelElement.innerHTML = `
-              <a href="#" onclick="showNovelDetail('${novelId}')">
-                <img src="${novel.coverUrl}" alt="${novel.title}">
-                <h3>${novel.title}</h3>
-              </a>
-              <button onclick="removeBookmark('${novelId}')" class="remove-bookmark">
-                <i class="fas fa-trash"></i> Hapus Bookmark
-              </button>
-            `;
-            bookmarkedNovels.appendChild(novelElement);
-          }
+        // Gunakan Promise.all untuk memuat semua novel sekaligus
+        const novels = await Promise.all(
+          querySnapshot.docs.map(async doc => {
+            const novelDoc = await db.collection('novels').doc(doc.id).get();
+            return novelDoc.exists ? { id: doc.id, ...novelDoc.data() } : null;
+          })
+        );
+        
+        // Filter novel yang tidak null
+        const validNovels = novels.filter(novel => novel !== null);
+        
+        if (validNovels.length === 0) {
+          bookmarkedNovels.innerHTML = '<p>Bookmark tidak valid</p>';
+          return;
+        }
+        
+        // Tampilkan novel
+        validNovels.forEach(novel => {
+          const novelElement = document.createElement('div');
+          novelElement.className = 'novel-item';
+          novelElement.innerHTML = `
+            <a href="#" onclick="showNovelDetail('${novel.id}')">
+              <img src="${novel.coverUrl || 'https://via.placeholder.com/180x240?text=No+Cover'}" alt="${novel.title}">
+              <h3>${novel.title}</h3>
+            </a>
+            <button onclick="removeBookmark('${novel.id}')" class="remove-bookmark">
+              <i class="fas fa-trash"></i> Hapus Bookmark
+            </button>
+          `;
+          bookmarkedNovels.appendChild(novelElement);
         });
       } catch (error) {
         console.error("Error showing bookmarks: ", error);
+        document.getElementById('bookmarkedNovels').innerHTML = '<p>Gagal memuat bookmark</p>';
       }
     }
 
     // Fungsi untuk menghapus bookmark
     async function removeBookmark(novelId) {
+      if (!auth.currentUser) return;
+      
       try {
-        await db.collection('users').doc(auth.currentUser.uid).collection('bookmarks').doc(novelId).delete();
-        alert('Bookmark dihapus');
-        showBookmarks();
+        await db.collection('users').doc(auth.currentUser.uid)
+          .collection('bookmarks').doc(novelId).delete();
+        
+        // Refresh tampilan
+        if (document.getElementById('bookmarkedNovels')) {
+          showBookmarks();
+        } else if (document.getElementById('mainContent').innerHTML.includes('novel-detail')) {
+          showNovelDetail(novelId);
+        }
       } catch (error) {
         console.error("Error removing bookmark: ", error);
+        alert('Gagal menghapus bookmark');
       }
     }
 
     // Fungsi untuk menampilkan form upload novel
     function showUploadForm() {
+      if (!auth.currentUser) {
+        alert('Silakan login terlebih dahulu');
+        return;
+      }
+      
       const mainContent = document.getElementById('mainContent');
       mainContent.innerHTML = `
         <h1>Upload Novel</h1>
         <form id="uploadForm">
           <div class="form-group">
-            <label for="title">Judul Novel</label>
+            <label for="title">Judul Novel*</label>
             <input type="text" id="title" required>
+            <small>Minimal 5 karakter, maksimal 100 karakter</small>
           </div>
           
           <div class="form-group">
             <label for="altTitle">Judul Alternatif (opsional)</label>
             <input type="text" id="altTitle">
+            <small>Maksimal 100 karakter</small>
           </div>
           
           <div class="form-group">
-            <label for="cover">Cover Novel</label>
+            <label for="cover">Cover Novel*</label>
             <input type="file" id="cover" accept="image/*" required>
+            <small>Ukuran maksimal 2MB, format JPG/PNG. Rekomendasi rasio 3:4</small>
           </div>
           
           <div class="form-group">
-            <label>Genre</label>
+            <label>Genre*</label>
             <div class="genre-grid" id="uploadGenreGrid"></div>
+            <small>Pilih minimal 1 genre, maksimal 5 genre</small>
           </div>
           
           <div class="form-group">
-            <label for="synopsis">Sinopsis</label>
+            <label for="synopsis">Sinopsis*</label>
             <textarea id="synopsis" rows="5" required></textarea>
+            <small>Minimal 100 karakter, maksimal 2000 karakter</small>
           </div>
           
           <button type="submit" class="submit-btn">Upload Novel</button>
@@ -967,7 +1202,12 @@
         genreItem.className = 'genre-item';
         genreItem.textContent = genre;
         genreItem.addEventListener('click', function() {
-          this.classList.toggle('selected');
+          const selectedCount = document.querySelectorAll('#uploadGenreGrid .selected').length;
+          if (this.classList.contains('selected') || selectedCount < 5) {
+            this.classList.toggle('selected');
+          } else {
+            alert('Maksimal 5 genre yang bisa dipilih');
+          }
         });
         document.getElementById('uploadGenreGrid').appendChild(genreItem);
       });
@@ -976,15 +1216,26 @@
       document.getElementById('uploadForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        if (!auth.currentUser) {
-          alert('Silakan login terlebih dahulu');
+        const title = document.getElementById('title').value.trim();
+        const altTitle = document.getElementById('altTitle').value.trim();
+        const coverFile = document.getElementById('cover').files[0];
+        const synopsis = document.getElementById('synopsis').value.trim();
+        
+        // Validasi
+        if (title.length < 5 || title.length > 100) {
+          alert('Judul novel harus antara 5-100 karakter');
           return;
         }
         
-        const title = document.getElementById('title').value;
-        const altTitle = document.getElementById('altTitle').value;
-        const coverFile = document.getElementById('cover').files[0];
-        const synopsis = document.getElementById('synopsis').value;
+        if (altTitle && altTitle.length > 100) {
+          alert('Judul alternatif maksimal 100 karakter');
+          return;
+        }
+        
+        if (synopsis.length < 100 || synopsis.length > 2000) {
+          alert('Sinopsis harus antara 100-2000 karakter');
+          return;
+        }
         
         const selectedGenres = Array.from(document.querySelectorAll('#uploadGenreGrid .selected'))
           .map(el => el.textContent);
@@ -994,31 +1245,52 @@
           return;
         }
         
+        if (coverFile.size > 2 * 1024 * 1024) {
+          alert('Ukuran cover maksimal 2MB');
+          return;
+        }
+        
         try {
-          // Upload cover
-          const coverRef = storage.ref().child(`covers/${Date.now()}_${coverFile.name}`);
+          // Tampilkan loading
+          const submitBtn = document.querySelector('#uploadForm .submit-btn');
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengupload...';
+          
+          // Upload cover ke Firebase Storage
+          const storageRef = storage.ref();
+          const coverRef = storageRef.child(`covers/${Date.now()}_${coverFile.name}`);
           const uploadTask = await coverRef.put(coverFile);
           const coverUrl = await uploadTask.ref.getDownloadURL();
           
-          // Simpan data novel
-          const novelRef = await db.collection('novels').add({
+          // Simpan data novel ke Firestore
+          const novelData = {
             title,
-            altTitle,
+            altTitle: altTitle || null,
             coverUrl,
             genres: selectedGenres,
             synopsis,
             authorId: auth.currentUser.uid,
-            authorName: auth.currentUser.displayName,
+            authorName: auth.currentUser.displayName || auth.currentUser.email,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
             views: 0,
             chapterCount: 0
-          });
+          };
           
+          const novelRef = await db.collection('novels').add(novelData);
+          
+          // Update UI
           alert('Novel berhasil diupload!');
           showNovelDetail(novelRef.id);
         } catch (error) {
           console.error('Error uploading novel:', error);
-          alert('Gagal mengupload novel');
+          alert('Gagal mengupload novel: ' + error.message);
+        } finally {
+          const submitBtn = document.querySelector('#uploadForm .submit-btn');
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Upload Novel';
+          }
         }
       });
     }
@@ -1108,17 +1380,13 @@
             })
             .catch((error) => {
               console.error('Error during login:', error);
-              alert('Gagal login');
+              alert('Gagal login: ' + error.message);
             });
         }
       });
 
       // Bookmark functionality
       bookmarkMenu.addEventListener('click', function() {
-        if (!auth.currentUser) {
-          alert('Silakan login terlebih dahulu untuk melihat bookmark');
-          return;
-        }
         showBookmarks();
         hamburgerMenu.classList.remove('active');
         overlay.classList.remove('active');
@@ -1126,13 +1394,22 @@
 
       // Upload novel functionality
       uploadMenu.addEventListener('click', function() {
-        if (!auth.currentUser) {
-          alert('Silakan login terlebih dahulu untuk mengupload novel');
-          return;
-        }
         showUploadForm();
         hamburgerMenu.classList.remove('active');
         overlay.classList.remove('active');
+      });
+
+      // Close modal ketika klik close button
+      document.querySelector('.close-modal')?.addEventListener('click', function() {
+        document.getElementById('uploadChapterModal').style.display = 'none';
+      });
+
+      // Close modal ketika klik di luar modal
+      window.addEventListener('click', function(event) {
+        const modal = document.getElementById('uploadChapterModal');
+        if (event.target === modal) {
+          modal.style.display = 'none';
+        }
       });
 
       // Update UI berdasarkan status login
@@ -1151,6 +1428,7 @@
     // Initialize App
     function initApp() {
       renderPopularNovels();
+      renderUpdatedNovels();
       setupHamburgerMenu();
       
       // Home link
@@ -1165,6 +1443,13 @@
         if (query) {
           alert(`Akan mencari novel dengan kata kunci: ${query}`);
           // Implementasi pencarian di sini
+        }
+      });
+      
+      // Close modal dengan ESC key
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+          document.getElementById('uploadChapterModal').style.display = 'none';
         }
       });
     }
