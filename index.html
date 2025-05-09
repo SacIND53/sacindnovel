@@ -887,9 +887,13 @@
         }
         
         // Update view count
-        await db.collection('novels').doc(novelId).update({
-          views: firebase.firestore.FieldValue.increment(1)
-        });
+        try {
+          await db.collection('novels').doc(novelId).update({
+            views: firebase.firestore.FieldValue.increment(1)
+          });
+        } catch (error) {
+          console.error("Error updating view count:", error);
+        }
         
         // Scroll ke atas
         window.scrollTo(0, 0);
@@ -996,7 +1000,7 @@
           showNovelDetail(novelId);
         } catch (error) {
           console.error("Error adding chapter: ", error);
-          alert('Gagal menambahkan chapter');
+          alert('Gagal menambahkan chapter: ' + error.message);
         } finally {
           const submitBtn = document.querySelector('#chapterForm .submit-btn');
           if (submitBtn) {
@@ -1183,7 +1187,7 @@
         }
       } catch (error) {
         console.error("Error removing bookmark: ", error);
-        alert('Gagal menghapus bookmark');
+        alert('Gagal menghapus bookmark: ' + error.message);
       }
     }
 
@@ -1355,12 +1359,21 @@
               chapterCount: 0
             };
             
-            await db.collection('novels').add(novelData);
-            
-            // 5. Tampilkan sukses
-            document.getElementById('uploadStatus').textContent = "Upload berhasil!";
-            alert('Novel berhasil diupload!');
-            window.location.reload();
+            try {
+              await db.collection('novels').add(novelData);
+              
+              // 5. Tampilkan sukses
+              document.getElementById('uploadStatus').textContent = "Upload berhasil!";
+              alert('Novel berhasil diupload!');
+              window.location.reload();
+            } catch (error) {
+              console.error("Error saving to Firestore:", error);
+              document.getElementById('uploadStatus').innerHTML = `
+                <span style="color:red">Gagal menyimpan data novel: ${error.message}</span>
+                <button class="retry-button" onclick="retryUpload()">Coba Lagi</button>
+              `;
+              throw error;
+            }
           }
         );
       } catch (error) {
