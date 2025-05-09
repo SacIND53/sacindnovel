@@ -62,6 +62,12 @@
       align-items: center;
       font-size: 24px;
       font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.3s ease;
+    }
+    
+    .logo:hover {
+      transform: scale(1.05);
     }
     
     .logo span:first-child {
@@ -676,7 +682,14 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    // Import Firebase modules
+    import { getFirestore, collection, addDoc, doc, getDoc, updateDoc, increment, 
+             query, where, getDocs, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+
     // Initialize Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyC8UjJC5BMIgDiRLX13YmnUgDW963q-rnE",
@@ -688,10 +701,10 @@
       measurementId: "G-96KY9P06QP"
     };
     
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
-    const storage = firebase.storage();
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth();
+    const db = getFirestore(app);
+    const storage = getStorage(app);
 
     // Daftar genre
     const genres = [
@@ -729,10 +742,9 @@
       popularNovelsContainer.innerHTML = '<div class="loading">Memuat novel populer...</div>';
       
       try {
-        const querySnapshot = await db.collection('novels')
-          .orderBy('views', 'desc')
-          .limit(6)
-          .get();
+        const novelsRef = collection(db, 'novels');
+        const q = query(novelsRef, orderBy('views', 'desc'), limit(6));
+        const querySnapshot = await getDocs(q);
         
         popularNovelsContainer.innerHTML = '';
         
@@ -765,10 +777,9 @@
       updatedNovelsContainer.innerHTML = '<div class="loading">Memuat update terbaru...</div>';
       
       try {
-        const querySnapshot = await db.collection('novels')
-          .orderBy('lastUpdated', 'desc')
-          .limit(12)
-          .get();
+        const novelsRef = collection(db, 'novels');
+        const q = query(novelsRef, orderBy('lastUpdated', 'desc'), limit(12));
+        const querySnapshot = await getDocs(q);
         
         updatedNovelsContainer.innerHTML = '';
         
@@ -802,9 +813,9 @@
       mainContent.innerHTML = '<div class="loading">Memuat detail novel...</div>';
       
       try {
-        const novelDoc = await db.collection('novels').doc(novelId).get();
+        const novelDoc = await getDoc(doc(db, 'novels', novelId));
         
-        if (!novelDoc.exists) {
+        if (!novelDoc.exists()) {
           mainContent.innerHTML = '<p>Novel tidak ditemukan</p>';
           return;
         }
@@ -864,10 +875,9 @@
         
         // Load chapters
         const chapterItems = document.getElementById('chapterItems');
-        const chaptersSnapshot = await db.collection('novels').doc(novelId)
-          .collection('chapters')
-          .orderBy('chapterNumber', 'asc')
-          .get();
+        const chaptersRef = collection(db, 'novels', novelId, 'chapters');
+        const chaptersQuery = query(chaptersRef, orderBy('chapterNumber', 'asc'));
+        const chaptersSnapshot = await getDocs(chaptersQuery);
           
         if (chaptersSnapshot.empty) {
           chapterItems.innerHTML = '<p>Belum ada chapter</p>';
@@ -888,8 +898,8 @@
         
         // Update view count
         try {
-          await db.collection('novels').doc(novelId).update({
-            views: firebase.firestore.FieldValue.increment(1)
+          await updateDoc(doc(db, 'novels', novelId), {
+            views: increment(1)
           });
         } catch (error) {
           console.error("Error updating view count:", error);
@@ -908,9 +918,8 @@
       if (!auth.currentUser) return false;
       
       try {
-        const bookmarkDoc = await db.collection('users').doc(auth.currentUser.uid)
-          .collection('bookmarks').doc(novelId).get();
-        return bookmarkDoc.exists;
+        const bookmarkDoc = await getDoc(doc(db, 'users', auth.currentUser.uid, 'bookmarks', novelId));
+        return bookmarkDoc.exists();
       } catch (error) {
         console.error("Error checking bookmark: ", error);
         return false;
@@ -926,18 +935,17 @@
       
       try {
         const isBookmarked = await isNovelBookmarked(novelId);
-        const bookmarkRef = db.collection('users').doc(auth.currentUser.uid)
-          .collection('bookmarks').doc(novelId);
+        const bookmarkRef = doc(db, 'users', auth.currentUser.uid, 'bookmarks', novelId);
           
         if (isBookmarked) {
-          await bookmarkRef.delete();
+          await deleteDoc(bookmarkRef);
           alert('Bookmark dihapus');
         } else {
-          const novelDoc = await db.collection('novels').doc(novelId).get();
-          await bookmarkRef.set({
+          const novelDoc = await getDoc(doc(db, 'novels', novelId));
+          await setDoc(bookmarkRef, {
             title: novelDoc.data().title,
             coverUrl: novelDoc.data().coverUrl,
-            addedAt: firebase.firestore.FieldValue.serverTimestamp()
+            addedAt: serverTimestamp()
           });
           alert('Novel ditambahkan ke bookmark');
         }
@@ -955,7 +963,7 @@
     // Fungsi untuk menampilkan form upload chapter
     async function showUploadChapterForm(novelId) {
       const modal = document.getElementById('uploadChapterModal');
-      const novelDoc = await db.collection('novels').doc(novelId).get();
+      const novelDoc = await getDoc(doc(db, 'novels', novelId));
       const nextChapterNumber = (novelDoc.data().chapterCount || 0) + 1;
       
       document.getElementById('chapterNumber').value = nextChapterNumber;
@@ -983,17 +991,17 @@
           submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengupload...';
           
           // Add chapter
-          await db.collection('novels').doc(novelId).collection('chapters').add({
+          await addDoc(collection(db, 'novels', novelId, 'chapters'), {
             chapterNumber,
             title,
             content,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            createdAt: serverTimestamp()
           });
           
           // Update chapter count
-          await db.collection('novels').doc(novelId).update({
+          await updateDoc(doc(db, 'novels', novelId), {
             chapterCount: chapterNumber,
-            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            lastUpdated: serverTimestamp()
           });
           
           modal.style.display = 'none';
@@ -1018,11 +1026,11 @@
       
       try {
         const [novelDoc, chapterDoc] = await Promise.all([
-          db.collection('novels').doc(novelId).get(),
-          db.collection('novels').doc(novelId).collection('chapters').doc(chapterId).get()
+          getDoc(doc(db, 'novels', novelId)),
+          getDoc(doc(db, 'novels', novelId, 'chapters', chapterId))
         ]);
         
-        if (!novelDoc.exists || !chapterDoc.exists) {
+        if (!novelDoc.exists() || !chapterDoc.exists()) {
           mainContent.innerHTML = '<p>Chapter tidak ditemukan</p>';
           return;
         }
@@ -1085,11 +1093,9 @@
     // Fungsi untuk mendapatkan chapter sebelumnya/sesudahnya
     async function getAdjacentChapter(novelId, chapterNumber) {
       try {
-        const querySnapshot = await db.collection('novels').doc(novelId)
-          .collection('chapters')
-          .where('chapterNumber', '==', chapterNumber)
-          .limit(1)
-          .get();
+        const chaptersRef = collection(db, 'novels', novelId, 'chapters');
+        const q = query(chaptersRef, where('chapterNumber', '==', chapterNumber), limit(1));
+        const querySnapshot = await getDocs(q);
           
         if (!querySnapshot.empty) {
           return {
@@ -1124,10 +1130,9 @@
       
       try {
         const bookmarkedNovels = document.getElementById('bookmarkedNovels');
-        const querySnapshot = await db.collection('users').doc(auth.currentUser.uid)
-          .collection('bookmarks')
-          .orderBy('addedAt', 'desc')
-          .get();
+        const bookmarksRef = collection(db, 'users', auth.currentUser.uid, 'bookmarks');
+        const q = query(bookmarksRef, orderBy('addedAt', 'desc'));
+        const querySnapshot = await getDocs(q);
         
         if (querySnapshot.empty) {
           bookmarkedNovels.innerHTML = '<p>Anda belum memiliki bookmark</p>';
@@ -1137,8 +1142,8 @@
         // Gunakan Promise.all untuk memuat semua novel sekaligus
         const novels = await Promise.all(
           querySnapshot.docs.map(async doc => {
-            const novelDoc = await db.collection('novels').doc(doc.id).get();
-            return novelDoc.exists ? { id: doc.id, ...novelDoc.data() } : null;
+            const novelDoc = await getDoc(doc(db, 'novels', doc.id));
+            return novelDoc.exists() ? { id: doc.id, ...novelDoc.data() } : null;
           })
         );
         
@@ -1176,8 +1181,7 @@
       if (!auth.currentUser) return;
       
       try {
-        await db.collection('users').doc(auth.currentUser.uid)
-          .collection('bookmarks').doc(novelId).delete();
+        await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'bookmarks', novelId));
         
         // Refresh tampilan
         if (document.getElementById('bookmarkedNovels')) {
@@ -1262,6 +1266,22 @@
       document.getElementById('uploadForm').dispatchEvent(new Event('submit'));
     }
 
+    // Fungsi untuk upload novel ke Firestore
+    async function uploadNovel(novelData) {
+      try {
+        const docRef = await addDoc(collection(db, "novels"), {
+          ...novelData,
+          uploaderId: auth.currentUser.uid,
+          createdAt: serverTimestamp()
+        });
+        console.log("Novel uploaded with ID: ", docRef.id);
+        return docRef.id;
+      } catch (error) {
+        console.error("Error uploading novel: ", error);
+        throw error;
+      }
+    }
+
     // Fungsi upload novel yang sudah dioptimasi
     async function handleNovelUpload(e) {
       e.preventDefault();
@@ -1301,10 +1321,10 @@
         
         // 2. Upload ke Firebase Storage dengan progress tracking
         document.getElementById('uploadStatus').textContent = "Memulai upload...";
-        const storageRef = storage.ref();
-        const coverRef = storageRef.child(`covers/${Date.now()}_${compressedFile.name}`);
+        const storageRef = ref(storage);
+        const coverRef = ref(storageRef, `covers/${Date.now()}_${compressedFile.name}`);
         
-        const uploadTask = coverRef.put(compressedFile, {
+        const uploadTask = uploadBytesResumable(coverRef, compressedFile, {
           contentType: compressedFile.type,
           customMetadata: {
             uploadedBy: auth.currentUser.uid
@@ -1338,7 +1358,7 @@
             document.getElementById('uploadStatus').textContent = "Menyelesaikan upload...";
             
             // 3. Dapatkan URL download
-            const coverUrl = await uploadTask.snapshot.ref.getDownloadURL();
+            const coverUrl = await getDownloadURL(uploadTask.snapshot.ref);
             
             // 4. Simpan data novel ke Firestore
             document.getElementById('uploadStatus').textContent = "Menyimpan data novel...";
@@ -1353,14 +1373,14 @@
               synopsis,
               authorId: auth.currentUser.uid,
               authorName: auth.currentUser.displayName || auth.currentUser.email,
-              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-              lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+              createdAt: serverTimestamp(),
+              lastUpdated: serverTimestamp(),
               views: 0,
               chapterCount: 0
             };
             
             try {
-              await db.collection('novels').add(novelData);
+              await uploadNovel(novelData);
               
               // 5. Tampilkan sukses
               document.getElementById('uploadStatus').textContent = "Upload berhasil!";
@@ -1527,14 +1547,14 @@
       loginMenu.addEventListener('click', function() {
         if (auth.currentUser) {
           // Jika sudah login, tampilkan menu logout
-          auth.signOut().then(() => {
+          signOut(auth).then(() => {
             alert('Anda telah logout');
             updateAuthUI();
           });
         } else {
           // Login dengan Google
-          const provider = new firebase.auth.GoogleAuthProvider();
-          auth.signInWithPopup(provider)
+          const provider = new GoogleAuthProvider();
+          signInWithPopup(auth, provider)
             .then((result) => {
               updateAuthUI();
             })
@@ -1591,10 +1611,16 @@
       renderUpdatedNovels();
       setupHamburgerMenu();
       
-      // Home link
+      // Home link - Improved version
       document.getElementById('homeLink').addEventListener('click', function(e) {
         e.preventDefault();
         document.getElementById('mainContent').innerHTML = '';
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+        renderPopularNovels();
+        renderUpdatedNovels();
       });
       
       // Search functionality
@@ -1612,6 +1638,15 @@
           document.getElementById('uploadChapterModal').style.display = 'none';
         }
       });
+
+      // Expose functions to global scope
+      window.showNovelDetail = showNovelDetail;
+      window.showChapter = showChapter;
+      window.navigateChapter = navigateChapter;
+      window.toggleBookmark = toggleBookmark;
+      window.removeBookmark = removeBookmark;
+      window.showUploadChapterForm = showUploadChapterForm;
+      window.retryUpload = retryUpload;
     }
 
     document.addEventListener('DOMContentLoaded', initApp);
