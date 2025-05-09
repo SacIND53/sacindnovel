@@ -561,6 +561,16 @@
       cursor: pointer;
       margin-top: 10px;
     }
+    
+    .cancel-button {
+      background-color: #ff3333;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -685,7 +695,7 @@
   <script type="module">
     // Import Firebase modules
     import { getFirestore, collection, addDoc, doc, getDoc, updateDoc, increment, 
-             query, where, getDocs, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+             query, where, getDocs, orderBy, limit, serverTimestamp, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -1195,33 +1205,76 @@
       }
     }
 
-    // Fungsi untuk kompresi gambar
-    async function compressImage(file, maxWidth = 800, quality = 0.7) {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = function(event) {
-          const img = new Image();
-          img.onload = function() {
-            const canvas = document.createElement('canvas');
-            const scale = Math.min(maxWidth / img.width, 1);
-            canvas.width = img.width * scale;
-            canvas.height = img.height * scale;
-            
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            
-            canvas.toBlob((blob) => {
-              resolve(new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now()
-              }));
-            }, 'image/jpeg', quality);
-          };
-          img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
-      });
+    // Utility to check if image needs compression
+    function shouldCompress(file) {
+      return file.size > 500 * 1024; // Compress if larger than 500KB
     }
+
+    // Optimized image compression using Web Worker or fallback
+    async function compressImage(file, maxWidth = 600, quality = 0.6) {
+      if (!shouldCompress(file)) return file;
+
+      // Check if Web Workers are supported
+      if (typeof Worker !== "undefined") {
+        return new Promise((resolve, reject) => {
+          const worker = new Worker('imageCompressor.js');
+          worker.onmessage = function (e) {
+            const { blob, error } = e.data;
+            if (error) {
+              reject(new Error(error));
+            } else {
+              resolve(
+                new File([blob], file.name, {
+                  type: "image/jpeg",
+                  lastModified: Date.now(),
+                })
+              );
+            }
+            worker.terminate();
+          };
+          worker.onerror = function (err) {
+            reject(err);
+            worker.terminate();
+          };
+          worker.postMessage({ file, maxWidth, quality });
+        });
+      } else {
+        // Fallback to main thread compression
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = function (event) {
+            const img = new Image();
+            img.onload = function () {
+              const canvas = document.createElement("canvas");
+              const scale = Math.min(maxWidth / img.width, 1);
+              canvas.width = img.width * scale;
+              canvas.height = img.height * scale;
+
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+              canvas.toBlob(
+                (blob) => {
+                  resolve(
+                    new File([blob], file.name, {
+                      type: "image/jpeg",
+                      lastModified: Date.now(),
+                    })
+                  );
+                },
+                "image/jpeg",
+                quality
+              );
+            };
+            img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+    }
+
+    // Cache for compressed image
+    let cachedCompressedFile = null;
 
     // Fungsi validasi form upload
     function validateUploadForm(title, altTitle, coverFile, synopsis) {
@@ -1260,10 +1313,10 @@
     }
 
     // Fungsi untuk retry upload
-    function retryUpload() {
-      document.querySelector('.upload-progress').remove();
-      document.querySelector('.upload-status').remove();
-      document.getElementById('uploadForm').dispatchEvent(new Event('submit'));
+    function retryUpload(form) {
+      document.querySelector('.upload-progress')?.remove();
+      document.querySelector('.upload-status')?.remove();
+      form.dispatchEvent(new Event('submit'));
     }
 
     // Fungsi untuk upload novel ke Firestore
@@ -1282,21 +1335,22 @@
       }
     }
 
-    // Fungsi upload novel yang sudah dioptimasi
+    // Optimized handleNovelUpload
     async function handleNovelUpload(e) {
       e.preventDefault();
-      
+
       if (!auth.currentUser) {
         alert('Silakan login terlebih dahulu');
         return;
       }
 
+      const form = e.target;
       const title = document.getElementById('title').value.trim();
       const altTitle = document.getElementById('altTitle').value.trim();
       const coverFile = document.getElementById('cover').files[0];
       const synopsis = document.getElementById('synopsis').value.trim();
-      
-      // Validasi
+
+      // Validate form
       if (!validateUploadForm(title, altTitle, coverFile, synopsis)) {
         return;
       }
@@ -1308,100 +1362,107 @@
           <div class="progress-bar" id="uploadProgress">0%</div>
         </div>
         <div class="upload-status" id="uploadStatus">Mempersiapkan upload...</div>
+        <button class="cancel-button" id="cancelUpload" style="display: none;">Batalkan</button>
       `;
       submitBtn.parentNode.insertBefore(progressContainer, submitBtn);
 
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
 
+      let uploadTask = null;
+
       try {
-        // 1. Kompresi gambar terlebih dahulu
+        // Warn about slow connection
+        if (navigator.connection && navigator.connection.downlink < 1) {
+          alert('Koneksi Anda lambat. Gunakan gambar dengan ukuran lebih kecil untuk upload lebih cepat.');
+        }
+
+        // Compress image (use cached version if retrying)
         document.getElementById('uploadStatus').textContent = "Mengkompresi gambar...";
-        const compressedFile = await compressImage(coverFile);
-        
-        // 2. Upload ke Firebase Storage dengan progress tracking
+        const fileToUpload = cachedCompressedFile || (await compressImage(coverFile));
+        cachedCompressedFile = fileToUpload; // Cache for retries
+
+        // Upload to Firebase Storage
         document.getElementById('uploadStatus').textContent = "Memulai upload...";
-        const storageRef = ref(storage);
-        const coverRef = ref(storageRef, `covers/${Date.now()}_${compressedFile.name}`);
-        
-        const uploadTask = uploadBytesResumable(coverRef, compressedFile, {
-          contentType: compressedFile.type,
-          customMetadata: {
-            uploadedBy: auth.currentUser.uid
-          }
+        const storageRef = ref(storage, `covers/${Date.now()}_${fileToUpload.name}`);
+        uploadTask = uploadBytesResumable(storageRef, fileToUpload, {
+          contentType: fileToUpload.type,
+          cacheControl: 'public,max-age=31536000',
+          customMetadata: { uploadedBy: auth.currentUser.uid }
         });
 
-        // Setup timeout
+        // Show cancel button
+        const cancelBtn = document.getElementById('cancelUpload');
+        cancelBtn.style.display = 'block';
+        cancelBtn.onclick = () => uploadTask.cancel();
+
+        // Dynamic timeout (1 minute per MB, max 5 minutes)
+        const timeoutMs = Math.min(fileToUpload.size / 1024 / 1024 * 60000, 300000);
         const uploadTimeout = setTimeout(() => {
           uploadTask.cancel();
-          throw new Error('Upload melebihi batas waktu (3 menit). Silakan coba lagi dengan gambar yang lebih kecil atau koneksi yang lebih stabil.');
-        }, 180000);
+          throw new Error('Upload melebihi batas waktu. Coba lagi dengan gambar lebih kecil atau koneksi lebih stabil.');
+        }, timeoutMs);
 
         // Progress tracking
-        uploadTask.on('state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            document.getElementById('uploadProgress').style.width = `${progress}%`;
-            document.getElementById('uploadProgress').textContent = `${Math.round(progress)}%`;
-            document.getElementById('uploadStatus').textContent = `Mengupload: ${Math.round(snapshot.bytesTransferred/1024)}KB dari ${Math.round(snapshot.totalBytes/1024)}KB`;
-          },
-          (error) => {
-            clearTimeout(uploadTimeout);
-            document.getElementById('uploadStatus').innerHTML = `
-              <span style="color:red">Gagal upload: ${error.message}</span>
-              <button class="retry-button" onclick="retryUpload()">Coba Lagi</button>
-            `;
-            throw error;
-          },
-          async () => {
-            clearTimeout(uploadTimeout);
-            document.getElementById('uploadStatus').textContent = "Menyelesaikan upload...";
-            
-            // 3. Dapatkan URL download
-            const coverUrl = await getDownloadURL(uploadTask.snapshot.ref);
-            
-            // 4. Simpan data novel ke Firestore
-            document.getElementById('uploadStatus').textContent = "Menyimpan data novel...";
-            const selectedGenres = Array.from(document.querySelectorAll('#uploadGenreGrid .selected'))
-              .map(el => el.textContent);
-            
-            const novelData = {
-              title,
-              altTitle: altTitle || null,
-              coverUrl,
-              genres: selectedGenres,
-              synopsis,
-              authorId: auth.currentUser.uid,
-              authorName: auth.currentUser.displayName || auth.currentUser.email,
-              createdAt: serverTimestamp(),
-              lastUpdated: serverTimestamp(),
-              views: 0,
-              chapterCount: 0
-            };
-            
-            try {
-              await uploadNovel(novelData);
-              
-              // 5. Tampilkan sukses
-              document.getElementById('uploadStatus').textContent = "Upload berhasil!";
-              alert('Novel berhasil diupload!');
-              window.location.reload();
-            } catch (error) {
-              console.error("Error saving to Firestore:", error);
+        await new Promise((resolve, reject) => {
+          uploadTask.on('state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              document.getElementById('uploadProgress').style.width = `${progress}%`;
+              document.getElementById('uploadProgress').textContent = `${Math.round(progress)}%`;
+              document.getElementById('uploadStatus').textContent = `Mengupload: ${Math.round(snapshot.bytesTransferred/1024)}KB dari ${Math.round(snapshot.totalBytes/1024)}KB`;
+            },
+            (error) => {
+              clearTimeout(uploadTimeout);
               document.getElementById('uploadStatus').innerHTML = `
-                <span style="color:red">Gagal menyimpan data novel: ${error.message}</span>
-                <button class="retry-button" onclick="retryUpload()">Coba Lagi</button>
+                <span style="color:red">Gagal upload: ${error.message}</span>
+                <button class="retry-button" onclick="retryUpload(document.getElementById('uploadForm'))">Coba Lagi</button>
               `;
-              throw error;
+              reject(error);
+            },
+            () => {
+              clearTimeout(uploadTimeout);
+              resolve();
             }
-          }
-        );
+          );
+        });
+
+        // Get download URL
+        document.getElementById('uploadStatus').textContent = "Menyelesaikan upload...";
+        const coverUrl = await getDownloadURL(uploadTask.snapshot.ref);
+
+        // Save to Firestore
+        document.getElementById('uploadStatus').textContent = "Menyimpan data novel...";
+        const selectedGenres = Array.from(document.querySelectorAll('#uploadGenreGrid .selected'))
+          .map(el => el.textContent);
+        const novelData = {
+          title,
+          altTitle: altTitle || null,
+          coverUrl,
+          genres: selectedGenres,
+          synopsis,
+          authorId: auth.currentUser.uid,
+          authorName: auth.currentUser.displayName || auth.currentUser.email,
+          createdAt: serverTimestamp(),
+          lastUpdated: serverTimestamp(),
+          views: 0,
+          chapterCount: 0
+        };
+
+        await uploadNovel(novelData);
+
+        // Success
+        document.getElementById('uploadStatus').textContent = "Upload berhasil!";
+        alert('Novel berhasil diupload!');
+        cachedCompressedFile = null; // Clear cache
+        window.location.reload();
       } catch (error) {
         console.error('Upload error:', error);
         document.getElementById('uploadStatus').innerHTML = `
           <span style="color:red">Error: ${error.message}</span>
-          <button class="retry-button" onclick="retryUpload()">Coba Lagi</button>
+          <button class="retry-button" onclick="retryUpload(document.getElementById('uploadForm'))">Coba Lagi</button>
         `;
+      } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Upload Novel';
       }
@@ -1537,7 +1598,6 @@
           return;
         }
         
-        // Implementasi filter genre di sini
         alert(`Filter diterapkan untuk genre: ${selectedGenres.join(', ')}`);
         hamburgerMenu.classList.remove('active');
         overlay.classList.remove('active');
@@ -1546,13 +1606,11 @@
       // Login functionality
       loginMenu.addEventListener('click', function() {
         if (auth.currentUser) {
-          // Jika sudah login, tampilkan menu logout
           signOut(auth).then(() => {
             alert('Anda telah logout');
             updateAuthUI();
           });
         } else {
-          // Login dengan Google
           const provider = new GoogleAuthProvider();
           signInWithPopup(auth, provider)
             .then((result) => {
@@ -1628,7 +1686,6 @@
         const query = document.getElementById('searchInput').value.trim();
         if (query) {
           alert(`Akan mencari novel dengan kata kunci: ${query}`);
-          // Implementasi pencarian di sini
         }
       });
       
@@ -1652,4 +1709,4 @@
     document.addEventListener('DOMContentLoaded', initApp);
   </script>
 </body>
-</html>
+  </html>
